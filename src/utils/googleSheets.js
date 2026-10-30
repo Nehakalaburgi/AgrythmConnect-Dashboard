@@ -44,31 +44,57 @@ export const fetchGoogleSheetCSV = async (csvUrl) => {
 };
 
 /**
- * Fetch all Farmers purely from Google Sheet 1 (Zero dummy data)
+ * Fetch all Farmers from local SQLite API (falls back to Google Sheets CSV if API unavailable)
  */
 export const loadFarmersData = async (customUrl = null) => {
-  const url = customUrl || GOOGLE_SHEETS_CONFIG.farmersCsvUrl;
+  const url = customUrl || GOOGLE_SHEETS_CONFIG.farmersApiUrl;
   try {
-    const rows = await fetchGoogleSheetCSV(url);
-    return { data: rows || [], source: 'live_google_sheet' };
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { data: Array.isArray(data) ? data : [], source: 'sqlite_live' };
   } catch (err) {
-    return { data: [], source: 'error', error: err.message };
+    console.warn(`Could not fetch from SQLite Farmers API (${url}). Trying Google Sheet fallback:`, err.message);
+    try {
+      const rows = await fetchGoogleSheetCSV(GOOGLE_SHEETS_CONFIG.farmersCsvUrl);
+      return { data: rows || [], source: 'live_google_sheet' };
+    } catch {
+      return { data: [], source: 'offline', error: err.message };
+    }
   }
 };
 
 /**
- * Fetch all Call Execution Logs purely from Google Sheet 2 (Zero dummy data)
+ * Fetch Call Execution Logs from local SQLite API
  */
 export const loadCallLogsData = async (customUrl = null) => {
-  const url = customUrl || GOOGLE_SHEETS_CONFIG.callLogsCsvUrl;
+  const url = customUrl || GOOGLE_SHEETS_CONFIG.callLogsApiUrl;
   try {
-    const rows = await fetchGoogleSheetCSV(url);
-    return { data: rows || [], source: 'live_google_sheet' };
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { data: Array.isArray(data) ? data : [], source: 'sqlite_live' };
   } catch (err) {
-    return { data: [], source: 'error', error: err.message };
+    console.warn(`Could not fetch from SQLite API (${url}). Check if server is running:`, err.message);
+    return { data: [], source: 'offline', error: err.message };
   }
 };
-
 /**
  * Push an updated or new call log to a Google Apps Script Web App endpoint
  */

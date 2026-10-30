@@ -15,10 +15,15 @@ export const TRUST_AI_THEME = {
   card: 'bg-white rounded-2xl border border-slate-200/80 p-5 transition-all duration-200',
 };
 
-// Google Sheets Configuration
+// Telemetry & Google Sheets Configuration
 export const GOOGLE_SHEETS_CONFIG = {
+  // SQLite Local API Endpoints (Backend Database)
+  farmersApiUrl: 'http://localhost:8000/api/farmers',
+  callLogsApiUrl: 'http://localhost:8000/api/calls',
+
+  // Google Sheets fallback / alternate source
   farmersSheetId: '1WwdKz4dyAL2tgMaMqStDvm95TQmaYKJtKCMPXYKWFcg',
-  callLogsSheetId: '14SwDi8WGten2dzqXDT-w29gbDLBpyDwjHQ8P-DnNds0',
   farmersCsvUrl: 'https://docs.google.com/spreadsheets/d/1WwdKz4dyAL2tgMaMqStDvm95TQmaYKJtKCMPXYKWFcg/export?format=csv',
+  callLogsSheetId: '14SwDi8WGten2dzqXDT-w29gbDLBpyDwjHQ8P-DnNds0',
   callLogsCsvUrl: 'https://docs.google.com/spreadsheets/d/14SwDi8WGten2dzqXDT-w29gbDLBpyDwjHQ8P-DnNds0/export?format=csv',
 };
