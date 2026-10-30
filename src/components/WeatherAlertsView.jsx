@@ -24,9 +24,11 @@ export const WeatherAlertsView = ({ callLogs = [] }) => {
     }
     const item = districtMap.get(district);
     item.calls.push(call);
-    if (call.weather_forecast) item.latestForecast = call.weather_forecast;
-    if (call.advisory_summary) item.advisory = call.advisory_summary;
-    if (call.rainfall_chance) item.rainfallChance = call.rainfall_chance;
+    if (call.weather_forecast && call.weather_forecast !== 'General Weather') item.latestForecast = call.weather_forecast;
+    if (call.advisory_summary && !call.advisory_summary.startsWith('No spoken message')) item.advisory = call.advisory_summary;
+    if (call.rainfall_chance && call.rainfall_chance !== 'N/A') item.rainfallChance = call.rainfall_chance;
+    if (call.temperature && call.temperature !== 'N/A') item.temp = call.temperature;
+    if (call.wind && call.wind !== 'N/A') item.wind = call.wind;
   });
 
   const alerts = Array.from(districtMap.values());
@@ -39,20 +41,20 @@ export const WeatherAlertsView = ({ callLogs = [] }) => {
         </div>
         <div>
           <h3 className="text-base font-bold text-slate-900">
-            No Weather Advisories in Google Sheet 2 Yet
+            No Weather Advisories Recorded Yet
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
-            District weather alerts are compiled purely from the <code>weather_forecast</code> and <code>advisory_summary</code> recorded by your voice agent in Google Sheet 2. As calls are logged, district cards will appear here.
+            District weather alerts are compiled from the grounded meteorological parameters and spoken advisory summaries delivered by your voice agent. As calls are logged, district cards will appear here.
           </p>
         </div>
         <div className="pt-2">
           <a
-            href={`https://docs.google.com/spreadsheets/d/${GOOGLE_SHEETS_CONFIG.callLogsSheetId}`}
+            href={GOOGLE_SHEETS_CONFIG.callLogsApiUrl}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-trust-navy text-white text-xs font-semibold hover:bg-slate-800 transition-colors"
           >
-            <span>Open Google Sheet 2</span>
+            <span>View Live Call Telemetry</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
@@ -72,7 +74,7 @@ export const WeatherAlertsView = ({ callLogs = [] }) => {
             District Weather Advisories ({alerts.length})
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Compiled from active Google Sheet 2 voice agent call records
+            Compiled from active Gate Zero voice agent call records and meteorological grounding
           </p>
         </div>
       </div>

@@ -7,7 +7,9 @@ import {
   isCallOnDate,
   getCallDate,
   getCallTime,
-  getDisplayDateTime
+  normalizeLanguage,
+  extractWeatherFromMessage,
+  maskPhoneNumber
 } from '../utils';
 
 export const useVoiceAgentData = () => {
@@ -107,23 +109,36 @@ export const useVoiceAgentData = () => {
     return map;
   }, [farmers]);
 
-  // Enriched Calls (Each call joined with farmer details purely from Sheet 1)
+  // Enriched Calls (Each call joined with farmer details and parsed weather metrics)
   const enrichedCallLogs = useMemo(() => {
     return callLogs.map(call => {
       const farmer = call.farmer_id ? farmersMap.get(String(call.farmer_id).trim()) || {} : {};
-      const callDate = getCallDate(call);
-      const callTime = getCallTime(call);
-      const displayDateTime = getDisplayDateTime(call);
+      const callDate = call.call_date || getCallDate(call);
+      const callTime = call.time || getCallTime(call);
+      
+      const weather = extractWeatherFromMessage(call.message_text, call);
+      
       return {
         ...call,
+        call_id: call.call_id || `${call.farmer_id}-${call.call_date}`,
         date: callDate,
         time: callTime,
-        displayDateTime,
+        call_timestamp: call.call_date,
+        displayDateTime: call.call_date ? `${call.call_date} (Attempt ${call.attempt_no || 1})` : 'Recent',
         farmer_name: call.farmer_name || farmer.farmer_name || (call.farmer_id ? `Farmer ${call.farmer_id}` : 'Unassigned'),
-        phone_number: call.phone_number || farmer.phone_number || 'N/A',
-        primary_language: call.primary_language || farmer.primary_language || 'N/A',
-        district: call.district || farmer.district || 'N/A',
-        village: call.village || farmer.village || 'N/A',
+        phone_number: farmer.phone_number || farmer.phone || 'N/A',
+        primary_language: normalizeLanguage(call.language || farmer.primary_language),
+        district: farmer.district || 'Bidar',
+        village: farmer.village || 'N/A',
+        // Grounded meteorological parameters from spoken message
+        weather_forecast: weather.weather_forecast,
+        temperature: weather.temperature,
+        rainfall_chance: weather.rainfall_chance,
+        humidity: weather.humidity,
+        wind: weather.wind,
+        condition: weather.condition,
+        advisory_summary: weather.advisory_summary,
+        call_status: call.call_status || call.status || 'answered',
       };
     });
   }, [callLogs, farmersMap]);
@@ -136,12 +151,8 @@ export const useVoiceAgentData = () => {
     return Array.from(set).sort();
   }, [farmers, callLogs]);
 
-  const availableLanguages = useMemo(() => {
-    const set = new Set();
-    farmers.forEach(f => { if (f.primary_language) set.add(f.primary_language); });
-    callLogs.forEach(c => { if (c.primary_language) set.add(c.primary_language); });
-    return Array.from(set).sort();
-  }, [farmers, callLogs]);
+  // Supported voice agent languages (strictly Hindi and English)
+  const availableLanguages = useMemo(() => ['English', 'Hindi'], []);
 
   // Filtered Calls
   const filteredCallLogs = useMemo(() => {
@@ -150,7 +161,9 @@ export const useVoiceAgentData = () => {
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesName = String(call.farmer_name || '').toLowerCase().includes(query);
-        const matchesPhone = String(call.phone_number || '').toLowerCase().includes(query);
+        const phoneStr = String(call.phone_number || '');
+        const matchesPhone = phoneStr.toLowerCase().includes(query) ||
+          maskPhoneNumber(phoneStr).toLowerCase().includes(query);
         const matchesCallId = String(call.call_id || '').toLowerCase().includes(query);
         const matchesVillage = String(call.village || '').toLowerCase().includes(query);
         if (!matchesName && !matchesPhone && !matchesCallId && !matchesVillage) {
@@ -188,6 +201,10 @@ export const useVoiceAgentData = () => {
   // Summary Metrics calculations purely from real sheet records
   const summaryMetrics = useMemo(() => {
     const totalCalls = enrichedCallLogs.length;
+    const deliveredCount = enrichedCallLogs.filter(c => String(c.call_status).toLowerCase() === 'answered').length;
+    const unansweredCount = enrichedCallLogs.filter(c => ['unanswered', 'busy', 'no_answer'].includes(String(c.call_status).toLowerCase())).length;
+    const failedCount = enrichedCallLogs.filter(c => String(c.call_status).toLowerCase() === 'failed').length;
+    const skippedCount = enrichedCallLogs.filter(c => String(c.call_status).toLowerCase() === 'skipped').length;
 
     // Calculate farmers who picked up the call and talked today
     const reachedMetrics = getFarmersReachedMetrics(enrichedCallLogs, farmers, {
@@ -195,8 +212,7 @@ export const useVoiceAgentData = () => {
       customDate,
     });
     
-    const deliveredCount = enrichedCallLogs.filter(c => c.call_status === 'Delivered').length;
-    const escalationCount = enrichedCallLogs.filter(c => c.call_status === 'Requires Escalation').length;
+    const escalationCount = enrichedCallLogs.filter(c => String(c.call_status).toLowerCase() === 'requires escalation').length;
     
     const severeWeatherAlerts = enrichedCallLogs.filter(c => {
       const chance = parseInt(c.rainfall_chance, 10) || 0;
@@ -225,6 +241,9 @@ export const useVoiceAgentData = () => {
       farmersReachedBadge: reachedMetrics.badge,
       totalRegisteredFarmers: farmers.length,
       deliveredCount,
+      unansweredCount,
+      failedCount,
+      skippedCount,
       escalationCount,
       severeWeatherAlerts,
       confidenceRate: avgConfidence,

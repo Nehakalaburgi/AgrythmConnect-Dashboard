@@ -56,7 +56,7 @@ export const Header = ({ onToggleSidebar, onRefresh, refreshing, syncStatus, act
                 }`}
             />
             <span className="font-semibold text-slate-800">
-              {syncStatus === 'connected' ? 'Connected to Sheets' : 'Syncing...'}
+              {syncStatus === 'connected' ? 'Connected (Sheets + SQLite)' : 'Syncing...'}
             </span>
           </div>
 

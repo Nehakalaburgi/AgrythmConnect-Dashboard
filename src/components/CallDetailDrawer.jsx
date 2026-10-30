@@ -10,31 +10,21 @@ import {
   Droplets, 
   Phone, 
   MapPin, 
-  ShieldCheck, 
-  Save, 
-  Check, 
   MessageSquare
 } from 'lucide-react';
 
-export const CallDetailDrawer = ({ call, onClose, onUpdateCall }) => {
+import { maskPhoneNumber } from '../utils';
+
+export const CallDetailDrawer = ({ call, onClose }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
-  const [currentStatus, setCurrentStatus] = useState(call?.call_status || 'Delivered');
-  const [operatorNotes, setOperatorNotes] = useState(call?.operator_notes || '');
-  const [sendSms, setSendSms] = useState(true);
-  const [escalateToAgronomist, setEscalateToAgronomist] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [activeCallId, setActiveCallId] = useState(call?.call_id);
 
   // Sync internal state when a different call is selected
   if (call && call.call_id !== activeCallId) {
     setActiveCallId(call.call_id);
-    setCurrentStatus(call.call_status || 'Delivered');
-    setOperatorNotes(call.operator_notes || '');
     setIsPlaying(false);
     setPlaybackTime(0);
-    setSaveSuccess(false);
   }
 
   // Audio timer simulation
@@ -56,22 +46,6 @@ export const CallDetailDrawer = ({ call, onClose, onUpdateCall }) => {
   }, [isPlaying, call]);
 
   if (!call) return null;
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await onUpdateCall(call.call_id, {
-        call_status: currentStatus,
-        operator_notes: operatorNotes,
-      });
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const formatTimer = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -137,7 +111,7 @@ export const CallDetailDrawer = ({ call, onClose, onUpdateCall }) => {
                   <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
                     <span className="flex items-center gap-1">
                       <Phone className="w-3 h-3 text-slate-400" />
-                      {call.phone_number || 'N/A'}
+                      <span className="font-mono">{maskPhoneNumber(call?.phone_number || call?.phone)}</span>
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1">
@@ -149,8 +123,14 @@ export const CallDetailDrawer = ({ call, onClose, onUpdateCall }) => {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700">
-                  {call.primary_language || 'N/A'}
+                <span
+                  className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${
+                    call.primary_language === 'English'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}
+                >
+                  {call.primary_language === 'English' ? 'English' : 'Hindi'}
                 </span>
                 <span className="px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-trust-green">
                   {call.farmer_id || 'N/A'}
@@ -216,10 +196,17 @@ export const CallDetailDrawer = ({ call, onClose, onUpdateCall }) => {
               <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
                 Weather Advisory Grounding
               </span>
-              <span className="text-xs font-semibold text-trust-green flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Confidence: {call.ai_confidence_score ? String(call.ai_confidence_score).includes('%') ? call.ai_confidence_score : `${call.ai_confidence_score}%` : 'N/A'}
-              </span>
+              {call.call_status === 'skipped' ? (
+                <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                  <CloudRain className="w-3.5 h-3.5 text-slate-400" />
+                  Skipped
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  <CloudRain className="w-3.5 h-3.5 text-emerald-600" />
+                  Live Grounded ({call.weather_source || 'Open-Meteo'})
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
@@ -258,7 +245,7 @@ export const CallDetailDrawer = ({ call, onClose, onUpdateCall }) => {
 
             <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-100 text-xs text-slate-700 leading-relaxed">
               <strong className="text-trust-navy block mb-1">Forecast: {call.weather_forecast || 'General Weather'}</strong>
-              {call.advisory_summary || 'No advisory summary text in Google Sheet.'}
+              {call?.message_text || call?.advisory_summary || 'No spoken message recorded'}
             </div>
           </div>
 
@@ -266,7 +253,7 @@ export const CallDetailDrawer = ({ call, onClose, onUpdateCall }) => {
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                Dialog Transcript ({call.primary_language || 'Primary'})
+                Dialog Transcript ({call.primary_language === 'English' ? 'English' : 'Hindi'})
               </span>
             </div>
 
@@ -277,97 +264,9 @@ export const CallDetailDrawer = ({ call, onClose, onUpdateCall }) => {
             ) : (
               <div className="p-6 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50 text-slate-400 text-xs">
                 <MessageSquare className="w-5 h-5 mx-auto mb-1.5 text-slate-400" />
-                No transcript preview provided in the Google Sheet row for this call.
+                No transcript preview provided in the database for this call.
               </div>
             )}
-          </div>
-
-          {/* Post-Call Operator Actions (Editable) */}
-          <div className="p-5 rounded-2xl bg-white border border-slate-200/80 space-y-4">
-            <div>
-              <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                Post-Call Handling & Sheet Sync
-              </span>
-              <h4 className="text-sm font-bold text-slate-900 mt-0.5">
-                Operator Action & Status Update
-              </h4>
-            </div>
-
-            {/* Status Dropdown */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Call Resolution Status
-              </label>
-              <select
-                value={currentStatus}
-                onChange={(e) => setCurrentStatus(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800 focus:outline-hidden focus:border-trust-navy focus:bg-white transition-all cursor-pointer"
-              >
-                <option value="Delivered">Delivered (Advisory acknowledged by farmer)</option>
-                <option value="Requires Escalation">Requires Escalation (Follow-up or agronomy review needed)</option>
-                <option value="Completed">Completed (Finalized)</option>
-              </select>
-            </div>
-
-            {/* Operator Notes Textarea */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Operator Notes & Follow-up Actions
-              </label>
-              <textarea
-                rows={3}
-                value={operatorNotes}
-                onChange={(e) => setOperatorNotes(e.target.value)}
-                placeholder="Enter notes about farmer feedback or escalation reasons..."
-                className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-trust-navy focus:bg-white transition-all"
-              />
-            </div>
-
-            {/* Quick check options */}
-            <div className="space-y-2 text-xs text-slate-600">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={sendSms}
-                  onChange={(e) => setSendSms(e.target.checked)}
-                  className="rounded text-trust-green focus:ring-trust-green"
-                />
-                <span>Dispatch follow-up SMS with written weather forecast</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={escalateToAgronomist}
-                  onChange={(e) => setEscalateToAgronomist(e.target.checked)}
-                  className="rounded text-trust-green focus:ring-trust-green"
-                />
-                <span>Flag for Regional Agricultural Officer (RAO) review</span>
-              </label>
-            </div>
-
-            {/* Save & Sync Button */}
-            <div className="pt-2 flex items-center justify-between gap-3">
-              <div className="text-xs text-slate-500">
-                {saveSuccess ? (
-                  <span className="text-trust-green font-bold flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" />
-                    Updated & synced successfully!
-                  </span>
-                ) : (
-                  <span>Will update record & sync to cloud sheet</span>
-                )}
-              </div>
-
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-trust-navy hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-sm disabled:opacity-50 cursor-pointer"
-              >
-                <Save className="w-4 h-4" />
-                <span>{isSaving ? 'Syncing...' : 'Save & Sync to Sheet'}</span>
-              </button>
-            </div>
           </div>
         </div>
       </aside>

@@ -11,29 +11,45 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { GOOGLE_SHEETS_CONFIG } from '../utils/constants';
+import { maskPhoneNumber } from '../utils';
 
 export const CallHistoryTable = ({ callLogs, onSelectCall, selectedCallId, onResetFilters, isFiltered }) => {
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'Delivered':
+  const getStatusBadge = (status, skipReason) => {
+    const s = String(status || '').toLowerCase();
+    switch (s) {
+      case 'answered':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-trust-green border border-emerald-200">
             <CheckCircle2 className="w-3 h-3" />
-            Delivered
+            Answered
           </span>
         );
-      case 'Requires Escalation':
+      case 'unanswered':
+      case 'busy':
+      case 'no_answer':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-            <AlertCircle className="w-3 h-3" />
-            Requires Escalation
+            <Clock className="w-3 h-3" />
+            Unanswered
           </span>
         );
-      case 'Completed':
+      case 'failed':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            <AlertCircle className="w-3 h-3" />
+            Failed
+          </span>
+        );
+      case 'skipped':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+            <AlertCircle className="w-3 h-3" />
+            Skipped {skipReason ? `(${skipReason})` : ''}
+          </span>
+        );
       default:
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
-            <CheckCircle2 className="w-3 h-3" />
             {status || 'Recorded'}
           </span>
         );
@@ -59,12 +75,12 @@ export const CallHistoryTable = ({ callLogs, onSelectCall, selectedCallId, onRes
         
         <div>
           <h3 className="text-base font-bold text-slate-900">
-            {isFiltered ? 'No Matching Call Records' : 'No Call Records in Google Sheet Yet'}
+            {isFiltered ? 'No Matching Call Records' : 'No Call Records in SQLite API Yet'}
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
             {isFiltered 
               ? 'No voice call logs match the selected search or filter criteria. Try adjusting your filters.'
-              : 'The dashboard is connected live to your Google Sheet. As the voice agent makes calls and rows are added to the sheet, they will automatically appear here.'}
+              : 'The dashboard is connected live to Gate Zero SQLite API (http://localhost:8000/api/calls). As the voice agent executes calls, they will appear here automatically.'}
           </p>
         </div>
 
@@ -80,12 +96,12 @@ export const CallHistoryTable = ({ callLogs, onSelectCall, selectedCallId, onRes
         ) : (
           <div className="pt-2">
             <a
-              href={`https://docs.google.com/spreadsheets/d/${GOOGLE_SHEETS_CONFIG.callLogsSheetId}`}
+              href={GOOGLE_SHEETS_CONFIG.callLogsApiUrl || `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEETS_CONFIG.callLogsSheetId}`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition-colors"
             >
-              <span>View Connected Sheet 2</span>
+              <span>View Live Telemetry API</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
@@ -107,7 +123,7 @@ export const CallHistoryTable = ({ callLogs, onSelectCall, selectedCallId, onRes
           </h3>
         </div>
         <div className="text-xs text-slate-500">
-          Showing real-time records from Google Sheet 2
+          Showing real-time records from Gate Zero SQLite API
         </div>
       </div>
 
@@ -122,7 +138,6 @@ export const CallHistoryTable = ({ callLogs, onSelectCall, selectedCallId, onRes
               <th className="px-4 py-3.5">Language</th>
               <th className="px-4 py-3.5 min-w-[240px]">Weather Advisory Summary</th>
               <th className="px-4 py-3.5">Duration</th>
-              <th className="px-4 py-3.5">AI Trust</th>
               <th className="px-4 py-3.5">Status</th>
               <th className="px-4 py-3.5 text-right">Action</th>
             </tr>
@@ -153,7 +168,7 @@ export const CallHistoryTable = ({ callLogs, onSelectCall, selectedCallId, onRes
                   <td className="px-4 py-3.5 whitespace-nowrap">
                     <div className="font-bold text-slate-900">{call.farmer_name}</div>
                     <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                      {call.phone_number}
+                      {maskPhoneNumber(call.phone_number || call.phone)}
                     </div>
                   </td>
 
@@ -168,8 +183,14 @@ export const CallHistoryTable = ({ callLogs, onSelectCall, selectedCallId, onRes
 
                   {/* Primary Language */}
                   <td className="px-4 py-3.5 whitespace-nowrap">
-                    <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px]">
-                      {call.primary_language}
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-bold text-[11px] border ${
+                        call.primary_language === 'English'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}
+                    >
+                      {call.primary_language === 'English' ? 'English' : 'Hindi'}
                     </span>
                   </td>
 
@@ -193,26 +214,9 @@ export const CallHistoryTable = ({ callLogs, onSelectCall, selectedCallId, onRes
                     {formatDuration(call.duration_sec)}
                   </td>
 
-                  {/* AI Trust Confidence */}
-                  <td className="px-4 py-3.5 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-trust-green text-xs">
-                        {call.ai_confidence_score ? String(call.ai_confidence_score).includes('%') ? call.ai_confidence_score : `${call.ai_confidence_score}%` : 'N/A'}
-                      </span>
-                    </div>
-                    {call.ai_confidence_score && (
-                      <div className="w-12 bg-slate-200 rounded-full h-1 mt-1 overflow-hidden">
-                        <div 
-                          className="bg-trust-green h-1 rounded-full"
-                          style={{ width: String(call.ai_confidence_score).includes('%') ? call.ai_confidence_score : `${call.ai_confidence_score}%` }}
-                        />
-                      </div>
-                    )}
-                  </td>
-
                   {/* Status Badge */}
                   <td className="px-4 py-3.5 whitespace-nowrap">
-                    {getStatusBadge(call.call_status)}
+                    {getStatusBadge(call.call_status, call.skip_reason)}
                   </td>
 
                   {/* Action / Inspect */}

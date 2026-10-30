@@ -3,8 +3,6 @@ import {
   PhoneCall,
   Users,
   CloudRain,
-  ShieldCheck,
-  Database,
   Activity,
   Radio,
   X
@@ -43,18 +41,6 @@ export const Sidebar = ({
       badgeColor: weatherAlertsCount > 0
         ? 'bg-amber-100 text-amber-800 border border-amber-200'
         : 'bg-slate-100 text-slate-500 border border-slate-200',
-    },
-    {
-      id: 'trust_ai',
-      label: 'Trust AI Analytics',
-      sublabel: 'Confidence & Drift',
-      icon: ShieldCheck,
-    },
-    {
-      id: 'sync',
-      label: 'Cloud Sync & Setup',
-      sublabel: 'Google Sheets & Script',
-      icon: Database,
     },
   ];
 
